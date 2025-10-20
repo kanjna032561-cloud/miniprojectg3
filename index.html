@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard ควบคุมไฟสถานะ</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-database-compat.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #1a2a6c, #b21f1f, #fdbb2d);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .dashboard {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            width: 100%;
+            max-width: 500px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        h1 {
+            margin-bottom: 30px;
+            font-size: 2.2rem;
+            text-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+        }
+        
+        .light-container {
+            position: relative;
+            margin: 40px 0;
+            height: 200px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .light-bulb {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            background: #333;
+            position: relative;
+            box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.8);
+            transition: all 0.5s ease;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2;
+        }
+        
+        .light-bulb.on {
+            background: #ffcc00;
+            box-shadow: 
+                0 0 50px #ffcc00,
+                0 0 100px #ffcc00,
+                inset 0 0 20px rgba(255, 255, 255, 0.5);
+        }
+        
+        .light-bulb::before {
+            content: "";
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
+            filter: blur(5px);
+        }
+        
+        .light-filament {
+            position: absolute;
+            width: 8px;
+            height: 60px;
+            background: #666;
+            border-radius: 4px;
+        }
+        
+        .light-filament::before,
+        .light-filament::after {
+            content: "";
+            position: absolute;
+            width: 8px;
+            height: 25px;
+            background: #666;
+            border-radius: 4px;
+            transform-origin: bottom;
+        }
+        
+        .light-filament::before {
+            transform: rotate(30deg);
+            left: -15px;
+        }
+        
+        .light-filament::after {
+            transform: rotate(-30deg);
+            right: -15px;
+        }
+        
+        .light-bulb.on .light-filament,
+        .light-bulb.on .light-filament::before,
+        .light-bulb.on .light-filament::after {
+            background: #ff9900;
+        }
+        
+        .light-base {
+            width: 60px;
+            height: 30px;
+            background: #555;
+            border-radius: 10px 10px 0 0;
+            position: absolute;
+            bottom: -30px;
+            z-index: 1;
+        }
+        
+        .control-btn {
+            background: linear-gradient(to right, #ff7e5f, #feb47b);
+            border: none;
+            border-radius: 50px;
+            padding: 15px 40px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            margin-top: 20px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .control-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+        }
+        
+        .control-btn:active {
+            transform: translateY(1px);
+        }
+        
+        .status {
+            margin-top: 20px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            padding: 10px;
+            border-radius: 10px;
+            background: rgba(0, 0, 0, 0.2);
+        }
+        
+        .status.on {
+            color: #ffcc00;
+            text-shadow: 0 0 10px rgba(255, 204, 0, 0.5);
+        }
+        
+        .status.off {
+            color: #aaa;
+        }
+        
+        .light-effect {
+            position: absolute;
+            width: 300px;
+            height: 300px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(255,204,0,0.3) 0%, rgba(255,204,0,0) 70%);
+            opacity: 0;
+            transition: opacity 0.5s ease;
+            z-index: 1;
+        }
+        
+        .light-effect.on {
+            opacity: 1;
+        }
+        
+        .connection-status {
+            margin-top: 15px;
+            font-size: 0.9rem;
+            padding: 8px;
+            border-radius: 5px;
+            background: rgba(0, 0, 0, 0.2);
+        }
+        
+        .connection-status.connected {
+            color: #4CAF50;
+        }
+        
+        .connection-status.disconnected {
+            color: #f44336;
+        }
+        
+        @media (max-width: 500px) {
+            .dashboard {
+                padding: 20px;
+            }
+            
+            h1 {
+                font-size: 1.8rem;
+            }
+            
+            .light-bulb {
+                width: 120px;
+                height: 120px;
+            }
+            
+            .light-effect {
+                width: 250px;
+                height: 250px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <h1>Dashboard ควบคุมไฟ</h1>
+        
+        <div class="light-container">
+            <div class="light-effect" id="lightEffect"></div>
+            <div class="light-bulb" id="lightBulb">
+                <div class="light-filament"></div>
+            </div>
+            <div class="light-base"></div>
+        </div>
+        
+        <button class="control-btn" id="toggleBtn">เปิดไฟ</button>
+        
+        <div class="status off" id="statusText">สถานะ: ปิด</div>
+        <div class="connection-status" id="connectionStatus">กำลังเชื่อมต่อ...</div>
+    </div>
+
+    <script>
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyC8q0K30p9FmaU5k4sZU2GUn4VqRV9zu0M",
+            authDomain: "basiclotg3-4eb85.firebaseapp.com",
+            projectId: "basiclotg3-4eb85",
+            storageBucket: "basiclotg3-4eb85.firebasestorage.app",
+            messagingSenderId: "855435579741",
+            appId: "1:855435579741:web:918e14ada2fe5db619d8b4"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        // DOM elements
+        const toggleBtn = document.getElementById('toggleBtn');
+        const lightBulb = document.getElementById('lightBulb');
+        const statusText = document.getElementById('statusText');
+        const lightEffect = document.getElementById('lightEffect');
+        const connectionStatus = document.getElementById('connectionStatus');
+
+        // Reference to the light status in Firebase
+        const lightRef = database.ref('light/status');
+
+        // Listen for changes in Firebase
+        lightRef.on('value', (snapshot) => {
+            const isLightOn = snapshot.val();
+            updateUI(isLightOn);
+            
+            // Update connection status
+            connectionStatus.textContent = "เชื่อมต่อกับ Firebase แล้ว";
+            connectionStatus.className = "connection-status connected";
+        }, (error) => {
+            console.error("Firebase error:", error);
+            connectionStatus.textContent = "การเชื่อมต่อมีปัญหา";
+            connectionStatus.className = "connection-status disconnected";
+        });
+
+        // Toggle button click handler
+        toggleBtn.addEventListener('click', function() {
+            lightRef.once('value').then((snapshot) => {
+                const currentStatus = snapshot.val();
+                // Toggle the status in Firebase
+                lightRef.set(!currentStatus);
+            });
+        });
+
+        // Update UI based on light status
+        function updateUI(isLightOn) {
+            if (isLightOn) {
+                lightBulb.classList.add('on');
+                lightEffect.classList.add('on');
+                statusText.textContent = 'สถานะ: เปิด';
+                statusText.classList.remove('off');
+                statusText.classList.add('on');
+                toggleBtn.textContent = 'ปิดไฟ';
+            } else {
+                lightBulb.classList.remove('on');
+                lightEffect.classList.remove('on');
+                statusText.textContent = 'สถานะ: ปิด';
+                statusText.classList.remove('on');
+                statusText.classList.add('off');
+                toggleBtn.textContent = 'เปิดไฟ';
+            }
+        }
+
+        // Handle connection state changes
+        database.ref('.info/connected').on('value', (snapshot) => {
+            if (snapshot.val() === true) {
+                connectionStatus.textContent = "เชื่อมต่อกับ Firebase แล้ว";
+                connectionStatus.className = "connection-status connected";
+            } else {
+                connectionStatus.textContent = "กำลังเชื่อมต่อใหม่...";
+                connectionStatus.className = "connection-status disconnected";
+            }
+        });
+    </script>
+</body>
+</html>
